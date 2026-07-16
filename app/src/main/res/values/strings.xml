@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Hey Manager</string>
+    <string name="accessibility_description">تستخدم هذه الصلاحية فقط للتنقل الأساسي (الرجوع، الرئيسية، التطبيقات الأخيرة) بناءً على أوامرك الصوتية ولا تقوم بقراءة محتوى الشاشة.</string>
+</resources>
