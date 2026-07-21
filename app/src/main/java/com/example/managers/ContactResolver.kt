@@ -15,6 +15,9 @@ import javax.inject.Singleton
  * Two passes: a fast LIKE query, then a normalized fuzzy scan that tolerates
  * hamza/ya/taa-marbuta variants (أحمد/احمد، فاطمة/فاطمه، علي/على).
  */
+/** جهة اتصال مطابقة: الاسم المعروض ورقمه. */
+data class ContactMatch(val displayName: String, val number: String)
+
 @Singleton
 class ContactResolver @Inject constructor(
     @ApplicationContext private val context: Context
@@ -81,6 +84,48 @@ class ContactResolver @Inject constructor(
             }
             best
         }
+    }
+
+    /**
+     * كل المطابقات التقريبية (حتى [limit]) — وقود محرك ترشيح الغموض في
+     * الطبقة الإدراكية: «عندك ثلاثة باسم محمد، أي واحد؟».
+     * تطابق تام أولاً ثم متسامح، مع إزالة التكرار على الاسم الموحَّد.
+     */
+    @SuppressLint("Range")
+    fun findAll(name: String, limit: Int = 5): List<ContactMatch> {
+        if (!hasContactsPermission()) return emptyList()
+        val needle = normalizeArabic(name.trim())
+        if (needle.isEmpty()) return emptyList()
+        val uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI
+        val projection = arrayOf(
+            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+            ContactsContract.CommonDataKinds.Phone.NUMBER
+        )
+        val exact = linkedMapOf<String, ContactMatch>()
+        val loose = linkedMapOf<String, ContactMatch>()
+        context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+            val nameIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+            val numIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+            while (cursor.moveToNext()) {
+                val display = cursor.getString(nameIdx)?.trim() ?: continue
+                val number = cursor.getString(numIdx)?.trim() ?: continue
+                val norm = normalizeArabic(display)
+                val match = ContactMatch(display, number)
+                when {
+                    norm == needle -> exact.putIfAbsent(norm, match)
+                    norm.contains(needle) || needle.contains(norm) || tokenMatch(norm, needle) ->
+                        if (!exact.containsKey(norm)) loose.putIfAbsent(norm, match)
+                }
+                if (exact.size + loose.size >= limit * 2) break
+            }
+        }
+        return (exact.values + loose.values).take(limit)
+    }
+
+    /** مطابقة على مستوى المقطع: «محمد» تلتقط «محمد الحداد» ولا تلتقط «محمود». */
+    private fun tokenMatch(contactNorm: String, needle: String): Boolean {
+        val tokens = contactNorm.split(" ").filter { it.isNotBlank() }
+        return tokens.any { it.startsWith(needle) || (it.length >= 3 && needle.startsWith(it)) }
     }
 
     companion object {

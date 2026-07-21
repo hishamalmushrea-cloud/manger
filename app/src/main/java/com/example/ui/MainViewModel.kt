@@ -23,6 +23,10 @@ import com.example.managers.ConversationContextManager
 import com.example.managers.VolumeManager
 import com.example.managers.FileHit
 import com.example.managers.FileSearchManager
+import com.example.cognitive.Clarify
+import com.example.cognitive.ClarifyAnswer
+import com.example.cognitive.CognitiveEngine
+import com.example.cognitive.CognitiveOutcome
 import com.example.managers.HealthReport
 import com.example.managers.LearningManager
 import com.example.processor.CommandProcessor
@@ -58,7 +62,8 @@ class MainViewModel @Inject constructor(
     private val fileSearchManager: FileSearchManager,
     private val volumeManager: VolumeManager,
     private val conversationContext: ConversationContextManager,
-    private val preferenceStore: PreferenceStore
+    private val preferenceStore: PreferenceStore,
+    private val cognitiveEngine: CognitiveEngine
 ) : ViewModel(), TextToSpeech.OnInitListener {
 
     /** متعرف الأوامر العربي المحلي (Vosk) — لا إنترنت ولا مفاتيح API. */
@@ -85,6 +90,8 @@ class MainViewModel @Inject constructor(
     private var pendingProactive: ProactiveVolume? = null
     /** نص الأمر الذي صحّحه المستخدم بـ«ليس هذا» — بانتظار الأمر الصحيح. */
     private var pendingCorrection: String? = null
+    /** سؤال توضيحي من الطبقة الإدراكية (نية ضمنية/غموض جهة/اختيار) بانتظار الرد. */
+    private var pendingClarify: Clarify? = null
 
     // ---------------- مؤشر «بانتظار ردك» في الواجهة ----------------
     private val _awaitingPrompt = MutableStateFlow<String?>(null)
@@ -290,7 +297,9 @@ class MainViewModel @Inject constructor(
 
     private fun processInput(rawCommand: String) {
         viewModelScope.launch {
-            val input = rawCommand.trim()
+            // الطبقة الإدراكية أولاً: معجمك الشخصي (دق←اتصل، اخي←محمد) يُطبَّق
+            // على كل ما تقوله قبل أي بوابة، فيفهمك النظام كله بلهجتك.
+            val input = cognitiveEngine.applyLexicon(rawCommand.trim())
             if (input.isEmpty()) return@launch
 
             // 0a) بانتظار إجابة المستخدم على سؤال استباقي (اقتراح مستوى الصوت).
@@ -303,6 +312,13 @@ class MainViewModel @Inject constructor(
             // 0b) بانتظار الأمر الصحيح بعد تصحيح فوري «ليس هذا».
             if (pendingCorrection != null) {
                 handleCorrectionAnswer(input)
+                syncAwaiting()
+                return@launch
+            }
+
+            // 0b2) بانتظار إجابة على سؤال الطبقة الإدراكية (نية/غموض/اختيار).
+            if (pendingClarify != null) {
+                handleClarifyAnswer(input)
                 syncAwaiting()
                 return@launch
             }
@@ -352,9 +368,7 @@ class MainViewModel @Inject constructor(
                 val result = commandProcessor.processCommand(learned.correctCommand)
                 val durationMs = SystemClock.elapsedRealtime() - startMs
                 if (result.success) afterExecuted(input, result, prevVolume)
-                result.healthReport?.let { _healthReport.value = it }
-                result.fileHits?.let { _fileHits.value = it }
-                respond(result.message)
+                respondOutcome(input, result)
                 logCommand(
                     text = input,
                     success = result.success,
@@ -370,6 +384,41 @@ class MainViewModel @Inject constructor(
 
             // 6) استكمال السياق: «و الفيس»، «ثم تيك توك»، أو اسم تطبيق مبتور.
             val completedInput = completeWithContext(input)
+
+            // 6.5) الطبقة الإدراكية: تعليم صريح، نموذج المستخدم، نوايا ضمنية،
+            // ترشيح الغموض، وتسلسل الأوامر — قبل الجدولة والاستراتيجيات.
+            when (val outcome = cognitiveEngine.intercept(completedInput)) {
+                null -> Unit
+                is CognitiveOutcome.Handled -> {
+                    respond(outcome.message)
+                    logCommand(
+                        text = input,
+                        success = true,
+                        reason = outcome.message,
+                        understoodCommand = completedInput,
+                        confidence = 0.92f,
+                        actionTaken = outcome.label
+                    )
+                    return@launch
+                }
+                is CognitiveOutcome.Ask -> {
+                    pendingClarify = outcome.clarify
+                    ask(outcome.clarify.question)
+                    logCommand(
+                        text = input,
+                        success = true,
+                        reason = "سؤال توضيحي: ${outcome.clarify.question}",
+                        understoodCommand = completedInput,
+                        confidence = 0.80f,
+                        actionTaken = "توضيح إدراكي"
+                    )
+                    return@launch
+                }
+                is CognitiveOutcome.Chain -> {
+                    runChain(outcome.commands, input)
+                    return@launch
+                }
+            }
 
             // 7) Scheduling «بعد X دقيقة»
             val delayMinutes = extractDelayMinutes(completedInput)
@@ -414,9 +463,7 @@ class MainViewModel @Inject constructor(
                 )
             } else {
                 if (result.success) afterExecuted(input, result, prevVolume)
-                result.healthReport?.let { _healthReport.value = it }
-                result.fileHits?.let { _fileHits.value = it }
-                respond(result.message)
+                respondOutcome(input, result)
                 logCommand(
                     text = input,
                     success = result.success,
@@ -468,9 +515,10 @@ class MainViewModel @Inject constructor(
     private fun endContinuousConversation(sayGoodbye: Boolean) {
         if (!continuousSession) return
         continuousSession = false
-        // أسئلة الصوت الاستباقية والتصحيحات تنتهي مع الجلسة (التعلم يبقى محفوظاً).
+        // أسئلة الصوت الاستباقية والتصحيحات والتوضيحات تنتهي مع الجلسة (التعلم يبقى).
         pendingProactive = null
         pendingCorrection = null
+        pendingClarify = null
         _awaitingPrompt.value = null
         mainHandler.removeCallbacks(conversationTimeout)
         try {
@@ -751,6 +799,9 @@ class MainViewModel @Inject constructor(
             } else if (pendingCorrection != null) {
                 pendingCorrection = null
                 respond("حسناً، تجاهلت التصحيح")
+            } else if (pendingClarify != null) {
+                pendingClarify = null
+                respond("حسناً، تجاهلت السؤال")
             }
             syncAwaiting()
         }
@@ -871,8 +922,7 @@ class MainViewModel @Inject constructor(
             return
         }
         if (result.success) afterExecuted(input, result, null)
-        result.healthReport?.let { _healthReport.value = it }
-        result.fileHits?.let { _fileHits.value = it }
+        respondOutcome(input, result)
         preferenceStore.recordCorrection(original, input)
         // سجّل التصحيح في قاعدة بيانات التعلم حتى لا يتكرر الخطأ مستقبلاً.
         learningManager.learn(original, input)
@@ -889,13 +939,73 @@ class MainViewModel @Inject constructor(
         )
     }
 
+    // ---------------- الطبقة الإدراكية: توضيح + تسلسل + تشخيص ----------------
+
+    /** الرد الموحّد على نتيجة أمر: يبث الحمولات الغنية، ويُلحق تشخيص السبب عند الفشل. */
+    private suspend fun respondOutcome(userText: String, result: CommandResult) {
+        result.healthReport?.let { _healthReport.value = it }
+        result.fileHits?.let { _fileHits.value = it }
+        val hint = if (!result.success) cognitiveEngine.diagnose(result.actionKey, userText) else null
+        respond(if (hint != null) "${result.message}، $hint" else result.message)
+    }
+
+    /** إجابة المستخدم على سؤال الطبقة الإدراكية: نفّذ/ألغِ/عالج كأمر جديد. */
+    private suspend fun handleClarifyAnswer(input: String) {
+        val pending = pendingClarify ?: return
+        when (val answer = cognitiveEngine.answerClarified(
+            pending, input, isYes(input), isNo(input)
+        )) {
+            is ClarifyAnswer.Proceed -> {
+                pendingClarify = null
+                processInput(answer.command)
+            }
+            is ClarifyAnswer.Cancel -> {
+                pendingClarify = null
+                respond(answer.message)
+            }
+            ClarifyAnswer.PassThrough -> {
+                // قال المستخدم أمراً مختلفاً تماماً — ألغِ التوضيح وعالجه طبيعياً.
+                pendingClarify = null
+                processInput(input)
+            }
+        }
+    }
+
+    /** تنفيذ أوامر متسلسلة واحداً تلو الآخر مع تقارير صوتية متراصة. */
+    private fun runChain(commands: List<String>, origin: String) {
+        viewModelScope.launch {
+            respond("سأنفذ ${commands.size} أوامر بالتتابع")
+            kotlinx.coroutines.delay(1500)
+            commands.forEachIndexed { index, part ->
+                val startMs = SystemClock.elapsedRealtime()
+                val result = commandProcessor.processCommand(part)
+                val durationMs = SystemClock.elapsedRealtime() - startMs
+                if (result.success) afterExecuted(part, result, null)
+                respondOutcome(part, result)
+                logCommand(
+                    text = origin,
+                    success = result.success,
+                    reason = "تسلسل ${index + 1}/${commands.size}: ${result.message}",
+                    understoodCommand = part,
+                    confidence = result.confidence,
+                    actionTaken = result.handledBy,
+                    failReason = if (result.success) null else result.message,
+                    durationMs = durationMs
+                )
+                if (index < commands.lastIndex) kotlinx.coroutines.delay(1800)
+            }
+        }
+    }
+
     // ---------------- تحديث سياق المحادثة بعد كل تنفيذ ناجح ----------------
 
     /**
      * بعد كل تنفيذ ناجح: تحديث آخر 3 كيانات نشطة (تطبيق/جهة اتصال/صوت)،
-     * وحفظ تفضيل الصوت، وتجهيز الإجراء القابل للتراجع.
+     * وحفظ تفضيل الصوت، وتجهيز الإجراء القابل للتراجع،
+     * وتغذية ذاكرة العادات الطويلة في الطبقة الإدراكية.
      */
-    private fun afterExecuted(userText: String, result: CommandResult, prevVolumePercent: Int?) {
+    private suspend fun afterExecuted(userText: String, result: CommandResult, prevVolumePercent: Int?) {
+        cognitiveEngine.noteSuccess(userText, result)
         conversationContext.noteSuccessfulAction()
         when (result.actionKey) {
             "open_app" -> {
@@ -977,7 +1087,9 @@ class MainViewModel @Inject constructor(
 
     /** يخفي مؤشر «بانتظار ردك» عندما لا تبقى أسئلة معلّقة. */
     private fun syncAwaiting() {
-        if (pendingProactive == null && pendingCorrection == null && pendingLearnPhrase == null) {
+        if (pendingProactive == null && pendingCorrection == null &&
+            pendingLearnPhrase == null && pendingClarify == null
+        ) {
             _awaitingPrompt.value = null
         }
     }
@@ -1066,6 +1178,7 @@ class MainViewModel @Inject constructor(
         pendingGuessCommand = null
         pendingProactive = null
         pendingCorrection = null
+        pendingClarify = null
         _awaitingPrompt.value = null
         val target = entry.understoodCommand?.takeIf { it.isNotBlank() } ?: entry.commandText
         if (target.isBlank()) return

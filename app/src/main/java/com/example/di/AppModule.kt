@@ -6,10 +6,13 @@ import androidx.work.WorkManager
 import com.example.ai.GeminiApi
 import com.example.data.AppDatabase
 import com.example.data.CommandDao
+import com.example.data.CommandEventDao
 import com.example.data.LearnedCommandDao
 import com.example.data.MIGRATION_1_2
 import com.example.data.MIGRATION_2_3
+import com.example.data.MIGRATION_3_4
 import com.example.data.ScheduledTaskDao
+import com.example.data.UserFactDao
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import dagger.Module
@@ -34,7 +37,7 @@ object AppModule {
             context,
             AppDatabase::class.java,
             "hey_manager_db"
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
     }
 
     @Provides
@@ -50,6 +53,16 @@ object AppModule {
     @Provides
     fun provideScheduledTaskDao(database: AppDatabase): ScheduledTaskDao {
         return database.scheduledTaskDao()
+    }
+
+    @Provides
+    fun provideCommandEventDao(database: AppDatabase): CommandEventDao {
+        return database.commandEventDao()
+    }
+
+    @Provides
+    fun provideUserFactDao(database: AppDatabase): UserFactDao {
+        return database.userFactDao()
     }
 
     @Provides
