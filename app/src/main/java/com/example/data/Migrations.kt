@@ -64,3 +64,21 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         )
     }
 }
+
+/**
+ * v4 -> v5: مراقبة الأداء الذاتي — جدول إحصاءات النجاح/الفشل/التصحيحات
+ * لكل نوع إجراء، يغذّي محرك الثقة وتقرير «ما نسبة نجاحك؟».
+ */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `self_stats` (" +
+                "`actionKey` TEXT NOT NULL PRIMARY KEY, " +
+                "`attempts` INTEGER NOT NULL, " +
+                "`successes` INTEGER NOT NULL, " +
+                "`corrections` INTEGER NOT NULL, " +
+                "`totalMs` INTEGER NOT NULL, " +
+                "`lastAt` INTEGER NOT NULL)"
+        )
+    }
+}

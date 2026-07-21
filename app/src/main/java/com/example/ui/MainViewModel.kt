@@ -367,8 +367,8 @@ class MainViewModel @Inject constructor(
                 val startMs = SystemClock.elapsedRealtime()
                 val result = commandProcessor.processCommand(learned.correctCommand)
                 val durationMs = SystemClock.elapsedRealtime() - startMs
-                if (result.success) afterExecuted(input, result, prevVolume)
-                respondOutcome(input, result)
+                if (result.success) afterExecuted(input, result, prevVolume, durationMs)
+                respondOutcome(input, result, durationMs)
                 logCommand(
                     text = input,
                     success = result.success,
@@ -462,8 +462,8 @@ class MainViewModel @Inject constructor(
                     durationMs = durationMs
                 )
             } else {
-                if (result.success) afterExecuted(input, result, prevVolume)
-                respondOutcome(input, result)
+                if (result.success) afterExecuted(input, result, prevVolume, durationMs)
+                respondOutcome(input, result, durationMs)
                 logCommand(
                     text = input,
                     success = result.success,
@@ -851,8 +851,10 @@ class MainViewModel @Inject constructor(
     // ---------------- 3) التصحيحات الفورية («ليس هذا») ----------------
 
     /** بدء التصحيح الفوري: نتراجع عن آخر إجراء قابل للتراجع ونسأل عن الصحيح. */
-    private fun startCorrectionFlow() {
+    private suspend fun startCorrectionFlow() {
         val undo = conversationContext.lastUndoableFresh(CORRECTION_WINDOW_MS) ?: return
+        // مراقبة النفس: التصحيح يُحسب علينا في دفتر الأداء الصادق.
+        cognitiveEngine.noteCorrection(undo.actionKey)
         conversationContext.clearUndoable()
         pendingCorrection = undo.userText
         val undone = undoLastAction(undo)
@@ -921,8 +923,8 @@ class MainViewModel @Inject constructor(
             )
             return
         }
-        if (result.success) afterExecuted(input, result, null)
-        respondOutcome(input, result)
+        if (result.success) afterExecuted(input, result, null, durationMs)
+        respondOutcome(input, result, durationMs)
         preferenceStore.recordCorrection(original, input)
         // سجّل التصحيح في قاعدة بيانات التعلم حتى لا يتكرر الخطأ مستقبلاً.
         learningManager.learn(original, input)
@@ -941,12 +943,34 @@ class MainViewModel @Inject constructor(
 
     // ---------------- الطبقة الإدراكية: توضيح + تسلسل + تشخيص ----------------
 
-    /** الرد الموحّد على نتيجة أمر: يبث الحمولات الغنية، ويُلحق تشخيص السبب عند الفشل. */
-    private suspend fun respondOutcome(userText: String, result: CommandResult) {
+    /**
+     * الرد الموحّد على نتيجة أمر: يبث الحمولات الغنية، وعند الفشل يسجّله في
+     * دفتر التقييم الذاتي ثم يحلل سببه عبر سلسلة الفحص — وإن وُجد حل صوتي
+     * يسأل الإذن قبل تنفيذه (التأني لا يفترض موافقتك أبداً).
+     */
+    private suspend fun respondOutcome(userText: String, result: CommandResult, durationMs: Long = 0L) {
         result.healthReport?.let { _healthReport.value = it }
         result.fileHits?.let { _fileHits.value = it }
-        val hint = if (!result.success) cognitiveEngine.diagnose(result.actionKey, userText) else null
-        respond(if (hint != null) "${result.message}، $hint" else result.message)
+        if (result.success) {
+            respond(result.message)
+            return
+        }
+        cognitiveEngine.noteFailure(result, durationMs)
+        val analysis = cognitiveEngine.analyzeFailure(result.actionKey, userText, result.message)
+        if (analysis == null) {
+            respond(result.message)
+            return
+        }
+        val causeText = "${result.message}، ${analysis.cause}" +
+            (analysis.solution?.let { "، $it" } ?: "")
+        val fix = analysis.fixCommand
+        if (fix != null) {
+            val question = causeText + "، " + (analysis.fixQuestion ?: "أنفّذ الحل المقترح الآن؟")
+            pendingClarify = Clarify.Confirm(question, fix)
+            ask(question)
+        } else {
+            respond(causeText)
+        }
     }
 
     /** إجابة المستخدم على سؤال الطبقة الإدراكية: نفّذ/ألغِ/عالج كأمر جديد. */
@@ -974,14 +998,16 @@ class MainViewModel @Inject constructor(
     /** تنفيذ أوامر متسلسلة واحداً تلو الآخر مع تقارير صوتية متراصة. */
     private fun runChain(commands: List<String>, origin: String) {
         viewModelScope.launch {
-            respond("سأنفذ ${commands.size} أوامر بالتتابع")
-            kotlinx.coroutines.delay(1500)
+            if (commands.size > 1) {
+                respond("سأنفذ ${commands.size} أوامر بالتتابع")
+                kotlinx.coroutines.delay(1500)
+            }
             commands.forEachIndexed { index, part ->
                 val startMs = SystemClock.elapsedRealtime()
                 val result = commandProcessor.processCommand(part)
                 val durationMs = SystemClock.elapsedRealtime() - startMs
-                if (result.success) afterExecuted(part, result, null)
-                respondOutcome(part, result)
+                if (result.success) afterExecuted(part, result, null, durationMs)
+                respondOutcome(part, result, durationMs)
                 logCommand(
                     text = origin,
                     success = result.success,
@@ -1004,8 +1030,13 @@ class MainViewModel @Inject constructor(
      * وحفظ تفضيل الصوت، وتجهيز الإجراء القابل للتراجع،
      * وتغذية ذاكرة العادات الطويلة في الطبقة الإدراكية.
      */
-    private suspend fun afterExecuted(userText: String, result: CommandResult, prevVolumePercent: Int?) {
-        cognitiveEngine.noteSuccess(userText, result)
+    private suspend fun afterExecuted(
+        userText: String,
+        result: CommandResult,
+        prevVolumePercent: Int?,
+        durationMs: Long = 0L
+    ) {
+        cognitiveEngine.noteSuccess(userText, result, durationMs)
         conversationContext.noteSuccessfulAction()
         when (result.actionKey) {
             "open_app" -> {

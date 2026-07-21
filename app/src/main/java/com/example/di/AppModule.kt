@@ -11,7 +11,9 @@ import com.example.data.LearnedCommandDao
 import com.example.data.MIGRATION_1_2
 import com.example.data.MIGRATION_2_3
 import com.example.data.MIGRATION_3_4
+import com.example.data.MIGRATION_4_5
 import com.example.data.ScheduledTaskDao
+import com.example.data.SelfStatDao
 import com.example.data.UserFactDao
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -37,7 +39,7 @@ object AppModule {
             context,
             AppDatabase::class.java,
             "hey_manager_db"
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build()
     }
 
     @Provides
@@ -63,6 +65,11 @@ object AppModule {
     @Provides
     fun provideUserFactDao(database: AppDatabase): UserFactDao {
         return database.userFactDao()
+    }
+
+    @Provides
+    fun provideSelfStatDao(database: AppDatabase): SelfStatDao {
+        return database.selfStatDao()
     }
 
     @Provides

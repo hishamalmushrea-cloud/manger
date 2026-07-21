@@ -67,7 +67,10 @@ sealed class ClarifyAnswer {
 class CognitiveEngine @Inject constructor(
     private val facts: UserFactsStore,
     private val habits: HabitsEngine,
-    private val diagnoser: FailureDiagnoser,
+    private val errorAnalysis: ErrorAnalysisEngine,
+    private val confidenceEngine: ConfidenceEngine,
+    private val selfEval: SelfEvaluationEngine,
+    private val causal: CausalEngine,
     private val contactResolver: ContactResolver,
     private val appOpenerManager: AppOpenerManager
 ) {
@@ -89,9 +92,36 @@ class CognitiveEngine @Inject constructor(
         // الأكثر حسماً أولاً: التعليم الصريح لا يخضع لأي تخمين.
         teachOutcome(text)?.let { return it }
         insightsOutcome(text)?.let { return it }
+        reasoningOutcome(text)?.let { return it }
         deepIntentOutcome(text)?.let { return it }
         ambiguityOutcome(text)?.let { return it }
         chainOutcome(text)?.let { return it }
+        return null
+    }
+
+    // ------------------------------------------------------------------
+    // 3ب) محركات الاستدلال: تقييم الذات + التشخيص السببي (أجوبة محكية)
+    // ------------------------------------------------------------------
+
+    private val selfEvalTriggers = listOf(
+        "نسبة نجاحك", "نسبه نجاحك", "كيف ادائك", "كيف أدائك", "ما ادائك", "ما أدائك",
+        "ادائك معي", "أدائك معي", "قيّم نفسك", "قيم نفسك", "تقييم ادائك", "تقييم أدائك",
+        "كم تنجح معي", "صدق نجاحك", "راقب نفسك"
+    )
+    private val causalTriggers = listOf(
+        "سبب البطء", "سبب بطء", "تشخيص سبب البطء", "ليش البطء",
+        "ليش الجهاز بطيء", "ليش التلفون بطيء", "ليش الجوال بطيء", "ليش بطيء",
+        "شنو سبب البطء", "ايش سبب البطء", "إيش سبب البطء",
+        "لماذا الجهاز بطيء", "لماذا بطيء", "جهازي بطيء ليش"
+    )
+
+    private suspend fun reasoningOutcome(text: String): CognitiveOutcome? {
+        if (selfEvalTriggers.any { text.contains(it) }) {
+            return CognitiveOutcome.Handled(selfEval.report(), "مراقبة الأداء الذاتي")
+        }
+        if (causalTriggers.any { text.contains(it) }) {
+            return CognitiveOutcome.Handled(causal.slownessReport(), "التفكير السببي")
+        }
         return null
     }
 
@@ -258,8 +288,8 @@ class CognitiveEngine @Inject constructor(
         if (slowImplicit.containsMatchIn(text)) {
             return CognitiveOutcome.Ask(
                 Clarify.Confirm(
-                    "أفحص صحة الجهاز وأخبرك بالسبب الأرجح للبطء؟",
-                    yesCommand = "صحة الجهاز"
+                    "أفحص جهازك بعمق وأخبرك بالسبب الأرجح للبطء؟",
+                    yesCommand = "تشخيص سبب البطء"
                 )
             )
         }
@@ -335,26 +365,46 @@ class CognitiveEngine @Inject constructor(
         }
         if (distinct.size < 2) return null
 
-        // محرك الاحتمالات: عاداتك + قرب الاسم من كلامك + موضعه في النتائج.
-        val needleNorm = LearningManager.normalize(name)
-        val scored = distinct.values.mapIndexed { index, m ->
-            val norm = LearningManager.normalize(m.displayName)
-            var score = habits.boostScore(k, m.displayName)
-            if (norm == needleNorm) score += 0.05f
-            if (norm.startsWith(needleNorm)) score += 0.03f
-            score -= index * 0.01f
-            m to score
-        }.sortedByDescending { it.second }.take(3)
+        // محرك الثقة متعدد العوامل: اسم + سياق + حداثة + توقيت + جلسة + عادات،
+        // وتُراجَع النتيجة بمراقبة الأداء الذاتي قبل الحكم.
+        val assessed = distinct.values.map { m ->
+            confidenceEngine.assessContact(name, k, m)
+        }.sortedByDescending { it.confidence }
 
-        val options = scored.map { (m, _) ->
-            val command = if (k == "call") "اتصل ب${m.displayName}" else "ارسل واتساب لـ ${m.displayName}"
-            m.displayName to command
+        val top = assessed.first()
+        val second = assessed.getOrNull(1)
+
+        // سياسة التأني 1: ثقة ≥85% بهامش ≥15% ← تنفيذ مباشر بلا سؤال.
+        if (top.confidence >= ConfidenceEngine.DIRECT_EXECUTE_THRESHOLD &&
+            (second == null || top.confidence - second.confidence >= ConfidenceEngine.DIRECT_EXECUTE_MARGIN)
+        ) {
+            return CognitiveOutcome.Chain(listOf(commandFor(k, top.match)))
         }
-        val spokenOptions = options.mapIndexed { i, o -> "${ordinalArabic(i)} ${o.first}" }
-            .joinToString("، ")
+
+        // سياسة التأني 2: أقل من 60% والمرشحون متقاربون ← إعادة صياغة لا تخمين.
+        if (top.confidence < ConfidenceEngine.REPHRASE_THRESHOLD &&
+            (second == null || top.confidence - second.confidence < ConfidenceEngine.REPHRASE_MARGIN)
+        ) {
+            return CognitiveOutcome.Handled(
+                "وجدت عدة تطابقات لـ«$name» لكن ثقتي منخفضة. أعد قول الاسم كاملاً كما في جهاتك، أو انطق الرقم نفسه",
+                "محرك الثقة"
+            )
+        }
+
+        // سياسة التأني 3: بين العتبتين ← سؤال بقائمة مرتبة ومبررات مقروءة.
+        val options = assessed.take(3).map { sc ->
+            sc.match.displayName to commandFor(k, sc.match)
+        }
+        val spokenOptions = assessed.take(3).mapIndexed { i, sc ->
+            "${ordinalArabic(i)} ${sc.match.displayName}" + (sc.note?.let { "، $it" } ?: "")
+        }.joinToString("، ")
         val question = "عندك أكثر من $name: $spokenOptions. أي واحد تقصد؟ قل اسمه، أو قل الأول أو الثاني"
         return CognitiveOutcome.Ask(Clarify.Choice(question, options))
     }
+
+    /** يبني الأمر القابل للتنفيذ بالاسم المعروض المضبوط الذي اختاره المستخدم. */
+    private fun commandFor(kind: String, match: com.example.managers.ContactMatch): String =
+        if (kind == "call") "اتصل ب${match.displayName}" else "ارسل واتساب لـ ${match.displayName}"
 
     private fun ordinalArabic(index: Int) = when (index) {
         0 -> "الأول"
@@ -431,12 +481,12 @@ class CognitiveEngine @Inject constructor(
     // 8) خدمات مساندة للـ ViewModel
     // ------------------------------------------------------------------
 
-    /** تمرير تشخيص الفشل إلى المختص. */
-    fun diagnose(actionKey: String?, userText: String): String? =
-        diagnoser.diagnose(actionKey, userText)
+    /** تحليل فشل كامل عبر محرك تحليل الخطأ (سلسلة فحص ثابتة). */
+    fun analyzeFailure(actionKey: String?, userText: String, rawMessage: String): ErrorAnalysis? =
+        errorAnalysis.analyze(actionKey, userText, rawMessage)
 
-    /** تسجيل نجاح في دفتر العادات (تسمية التطبيق أو اسم جهة الاتصال عموماً). */
-    suspend fun noteSuccess(userText: String, result: CommandResult) {
+    /** تسجيل نجاح: دفتر العادات + تقييم الأداء الذاتي. */
+    suspend fun noteSuccess(userText: String, result: CommandResult, durationMs: Long) {
         val kind = result.actionKey ?: return
         val label = when (kind) {
             "open_app" -> {
@@ -448,6 +498,17 @@ class CognitiveEngine @Inject constructor(
             else -> null
         }
         habits.record(kind, label, userText)
+        selfEval.noteResult(kind, success = true, durationMs = durationMs)
+    }
+
+    /** تسجيل فشل في دفتر التقييم الذاتي (مراقبة النفس الصادقة). */
+    suspend fun noteFailure(result: CommandResult, durationMs: Long) {
+        result.actionKey?.let { selfEval.noteResult(it, success = false, durationMs = durationMs) }
+    }
+
+    /** تصحيح المستخدم «ليس هذا» يُحسب في دفتر التقييم الذاتي. */
+    suspend fun noteCorrection(actionKey: String?) {
+        if (!actionKey.isNullOrBlank()) selfEval.noteCorrection(actionKey)
     }
 
     private val appVerbs = Regex(

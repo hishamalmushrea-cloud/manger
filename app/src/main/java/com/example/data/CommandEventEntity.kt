@@ -54,4 +54,15 @@ interface CommandEventDao {
 
     @Query("DELETE FROM command_events WHERE at < :before")
     suspend fun prune(before: Long)
+
+    /** آخر استخدام لتسمية معيّنة (يحوي التسمية جزئياً) — عامل «الحداثة» في الثقة. */
+    @Query("SELECT MAX(at) FROM command_events WHERE kind = :kind AND label LIKE :likeLabel")
+    suspend fun lastUsedAt(kind: String, likeLabel: String): Long?
+
+    /** أحداث تسمية معيّنة في فترة يوم محددة — عامل «عادة التوقيت» في الثقة. */
+    @Query(
+        "SELECT COUNT(*) FROM command_events " +
+            "WHERE kind = :kind AND bucket = :bucket AND label LIKE :likeLabel AND at > :since"
+    )
+    suspend fun bucketCount(kind: String, bucket: String, likeLabel: String, since: Long): Int
 }

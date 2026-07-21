@@ -9,9 +9,10 @@ import androidx.room.RoomDatabase
         ScheduledTaskEntity::class,
         LearnedCommandEntity::class,
         CommandEventEntity::class,
-        UserFactEntity::class
+        UserFactEntity::class,
+        SelfStatEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -20,4 +21,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun learnedCommandDao(): LearnedCommandDao
     abstract fun commandEventDao(): CommandEventDao
     abstract fun userFactDao(): UserFactDao
+    abstract fun selfStatDao(): SelfStatDao
 }
