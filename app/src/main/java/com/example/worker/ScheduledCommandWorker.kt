@@ -4,6 +4,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
@@ -33,16 +34,23 @@ class ScheduledCommandWorker @AssistedInject constructor(
         val taskId = inputData.getString("TASK_ID") ?: return@withContext Result.failure()
 
         Timber.d("Executing scheduled command: $commandText")
-        
+
+        val startMs = SystemClock.elapsedRealtime()
         val result = commandProcessor.processCommand(commandText, isScheduled = true)
-        
-        // Log it
+        val durationMs = SystemClock.elapsedRealtime() - startMs
+
+        // Log it (rich entry for the Command Center)
         commandDao.insertLog(
             CommandLogEntity(
                 commandText = commandText,
                 timestamp = System.currentTimeMillis(),
                 status = if (result.success) "SUCCESS" else "FAILED",
-                reason = result.message
+                reason = result.message,
+                understoodCommand = commandText,
+                confidence = result.confidence,
+                actionTaken = result.handledBy ?: "أمر مجدول",
+                failReason = if (result.success) null else result.message,
+                durationMs = durationMs
             )
         )
 

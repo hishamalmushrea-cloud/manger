@@ -3,20 +3,20 @@ package com.example.managers
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.provider.ContactsContract
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class CallManager @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val contactResolver: ContactResolver
 ) {
 
     fun makeCall(target: String, scheduled: Boolean = false): Boolean {
         // If it's a number, call directly. Otherwise, find contact.
         val isNumber = target.matches(Regex("^[0-9+*#]+$"))
-        val numberToCall = if (isNumber) target else findContactNumber(target)
+        val numberToCall = if (isNumber) target else contactResolver.resolveNumber(target)
 
         if (numberToCall == null) return false
 
@@ -26,7 +26,7 @@ class CallManager @Inject constructor(
         val intent = Intent(action, Uri.parse("tel:$numberToCall")).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
-        
+
         return try {
             context.startActivity(intent)
             true
@@ -46,20 +46,5 @@ class CallManager @Inject constructor(
                 false
             }
         }
-    }
-
-    private fun findContactNumber(name: String): String? {
-        val uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI
-        val projection = arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER)
-        val selection = "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ?"
-        val selectionArgs = arrayOf("%$name%")
-
-        context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                val numberIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
-                return cursor.getString(numberIndex)
-            }
-        }
-        return null
     }
 }

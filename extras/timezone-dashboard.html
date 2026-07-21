@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة مقارنة المناطق الزمنية — Neon TimeDeck</title>
+<style>
+:root{
+  --bg:#050816; --bg2:#0b1030; --card:rgba(255,255,255,.06); --card2:rgba(255,255,255,.10);
+  --line:rgba(120,190,255,.22); --txt:#eaf3ff; --mut:#8fa8c9;
+  --neon:#22e6ff; --neon2:#ff4fd8; --gold:#ffd166; --good:#3ddc84; --warn:#ffb020; --bad:#ff5d5d;
+  --glow:0 0 12px rgba(34,230,255,.55);
+}
+body[data-theme="light"]{
+  --bg:#eef4ff; --bg2:#dfe9fb; --card:rgba(255,255,255,.72); --card2:rgba(255,255,255,.9);
+  --line:rgba(40,90,180,.22); --txt:#0e1a33; --mut:#4d6285;
+  --neon:#0b8fd0; --neon2:#c2188f; --glow:0 0 10px rgba(11,143,208,.35);
+}
+*{box-sizing:border-box; margin:0; padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:'Segoe UI',Tahoma,'Noto Kufi Arabic',Arial,sans-serif;
+  background:linear-gradient(160deg,var(--bg),var(--bg2) 70%,var(--bg));
+  color:var(--txt); min-height:100vh; padding:18px clamp(10px,3vw,34px) 60px;
+  overflow-x:hidden; transition:background .4s, color .4s;
+}
+.aurora{position:fixed; inset:-20%; z-index:-1; filter:blur(90px); opacity:.5; pointer-events:none;
+  background:
+   radial-gradient(38% 30% at 18% 22%, rgba(34,230,255,.35), transparent 70%),
+   radial-gradient(30% 34% at 82% 18%, rgba(255,79,216,.30), transparent 70%),
+   radial-gradient(34% 30% at 55% 85%, rgba(90,80,255,.30), transparent 70%);
+  animation:drift 26s ease-in-out infinite alternate;}
+body[data-theme="light"] .aurora{opacity:.28}
+@keyframes drift{from{transform:translate(-3%,-2%) rotate(0)}to{transform:translate(3%,3%) rotate(6deg)}}
+header{max-width:1180px;margin:0 auto 8px;text-align:center}
+h1{font-size:clamp(22px,4vw,34px);font-weight:900;letter-spacing:.5px;
+  background:linear-gradient(90deg,var(--neon),var(--neon2),var(--neon));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  text-shadow:var(--glow); animation:hue 8s linear infinite;}
+@keyframes hue{to{filter:hue-rotate(360deg)}}
+.sub{color:var(--mut);font-size:13px;margin-top:4px}
+.masterclock{margin:14px auto 4px;display:inline-block;padding:10px 26px;border-radius:18px;
+  background:var(--card);border:1px solid var(--line);backdrop-filter:blur(14px);box-shadow:var(--glow)}
+.masterclock .t{font-size:clamp(30px,6vw,52px);font-variant-numeric:tabular-nums;font-weight:800;direction:ltr}
+.masterclock .t .sec{color:var(--neon);font-size:.55em}
+.masterclock .d{color:var(--mut);font-size:14px;margin-top:2px}
+.blink{animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:.15}}
+.tzchip{margin-top:6px;font-size:13px;color:var(--gold)}
+.toolbar{max-width:1180px;margin:10px auto 0;display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+button.tgl{border:1px solid var(--line);background:var(--card);color:var(--txt);border-radius:12px;
+  padding:7px 14px;font-size:13px;cursor:pointer;backdrop-filter:blur(10px);transition:.2s}
+button.tgl:hover{border-color:var(--neon);box-shadow:var(--glow);transform:translateY(-1px)}
+section{max-width:1180px;margin:26px auto 0}
+h2{font-size:19px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+h2::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:14px}
+.card{position:relative;border-radius:20px;padding:16px;background:var(--card);
+  border:1px solid var(--line);backdrop-filter:blur(14px);overflow:hidden;
+  transition:transform .25s, box-shadow .25s, border-color .25s; animation:pop .5s both}
+.card:hover{transform:translateY(-4px);border-color:var(--neon);box-shadow:var(--glow)}
+@keyframes pop{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+.card.local{border-color:var(--gold);box-shadow:0 0 14px rgba(255,209,102,.35)}
+.card .flag{font-size:26px}
+.card .city{font-size:17px;font-weight:800;margin-inline-start:6px}
+.card .en{color:var(--mut);font-size:12px}
+.card .clock{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;direction:ltr;text-align:center;margin:10px 0 4px}
+.card .clock .sec{color:var(--neon);font-size:.55em}
+.card .date{text-align:center;color:var(--mut);font-size:12.5px}
+.row{display:flex;justify-content:space-between;align-items:center}
+.badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;justify-content:center}
+.badge{font-size:11px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--card2);white-space:nowrap}
+.badge.ahead{color:var(--good);border-color:rgba(61,220,132,.45)}
+.badge.behind{color:var(--warn);border-color:rgba(255,176,32,.45)}
+.badge.same{color:var(--neon);border-color:rgba(34,230,255,.45)}
+.badge.mine{color:var(--gold);border-color:rgba(255,209,102,.5)}
+.badge.dst{color:var(--neon2);border-color:rgba(255,79,216,.45)}
+.badge.day{color:var(--gold)} .badge.night{color:#9db4ff}
+.sky{position:absolute;inset:0;pointer-events:none;opacity:.16}
+.sky.day{background:linear-gradient(180deg,#ffd16633,transparent 60%)}
+.sky.night{background:linear-gradient(180deg,#3145a033,transparent 60%)}
+.x{position:absolute;top:10px;left:10px;width:22px;height:22px;border-radius:50%;border:1px solid var(--line);
+  background:transparent;color:var(--mut);cursor:pointer;font-size:12px;line-height:1;opacity:0;transition:.2s}
+.card:hover .x{opacity:1}.x:hover{color:var(--bad);border-color:var(--bad)}
+.addbar{display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+select,input[type="datetime-local"],input[type="time"]{background:var(--card2);color:var(--txt);border:1px solid var(--line);
+  border-radius:12px;padding:8px 12px;font-size:14px;font-family:inherit;outline:none;transition:.2s}
+select:focus,input:focus{border-color:var(--neon);box-shadow:var(--glow)}
+.cta{background:linear-gradient(90deg,var(--neon),var(--neon2));color:#04121c;font-weight:800;border:none;
+  border-radius:12px;padding:9px 20px;font-size:14px;cursor:pointer;transition:.2s}
+.cta:hover{transform:translateY(-1px);box-shadow:0 4px 18px rgba(34,230,255,.4)}
+.countwrap{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:18px;backdrop-filter:blur(14px);text-align:center}
+.countwrap .cd{font-size:clamp(26px,5vw,44px);font-weight:800;direction:ltr;font-variant-numeric:tabular-nums;color:var(--neon);text-shadow:var(--glow)}
+.pbar{height:10px;border-radius:99px;background:var(--card2);border:1px solid var(--line);margin-top:12px;overflow:hidden}
+.pbar>i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--neon),var(--neon2));transition:width 1s linear}
+.tblwrap{overflow-x:auto;border-radius:20px;border:1px solid var(--line);background:var(--card);backdrop-filter:blur(14px)}
+table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:860px}
+th,td{padding:11px 12px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap}
+th{cursor:pointer;user-select:none;color:var(--neon);background:var(--card2);position:sticky;top:0}
+th:hover{color:var(--neon2)} th .arr{opacity:.7;font-size:10px}
+tbody tr{transition:.15s} tbody tr:hover{background:var(--card2)}
+.num{direction:ltr;font-variant-numeric:tabular-nums}
+.conv{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;align-items:center;
+  background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px;backdrop-filter:blur(14px)}
+.result{margin-top:14px;text-align:center;font-size:18px;font-weight:800}
+.result .big{font-size:clamp(24px,5vw,38px);direction:ltr;color:var(--neon);text-shadow:var(--glow);margin-top:6px}
+.result .note{color:var(--mut);font-size:13px;margin-top:8px;font-weight:400}
+.tl{min-width:760px}
+.tlrow{display:grid;grid-template-columns:150px 1fr;gap:10px;align-items:center;margin:7px 0}
+.tlrow .nm{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tlbar{position:relative;height:26px;border-radius:8px;overflow:visible;border:1px solid var(--line);background:var(--card2)}
+.tlbar .seg{position:absolute;top:0;bottom:0}
+.tlbar .nite{background:rgba(20,30,70,.55)}
+body[data-theme="light"] .tlbar .nite{background:rgba(40,60,130,.18)}
+.tlbar .work{background:rgba(61,220,132,.28)}
+.tlbar .now{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--neon2);box-shadow:0 0 8px var(--neon2)}
+.tlbar .now::after{content:"▼";position:absolute;top:-12px;inset-inline-start:-6px;font-size:9px;color:var(--neon2)}
+.hr-ticks{display:grid;grid-template-columns:150px 1fr;gap:10px;font-size:10px;color:var(--mut)}
+.ticks{display:flex;justify-content:space-between;padding-inline:1px}
+.mp-ctl{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:14px}
+.chk{display:flex;gap:6px;align-items:center;font-size:13px;border:1px solid var(--line);border-radius:999px;padding:6px 12px;cursor:pointer;background:var(--card)}
+.chk input{accent-color:var(--neon)}
+.best{margin-top:16px;text-align:center;padding:14px;border-radius:16px;border:1px dashed var(--line);background:var(--card2)}
+.best .slot{font-size:20px;font-weight:800;color:var(--good)}
+.best .maps{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px}
+.best .m{border:1px solid var(--line);border-radius:10px;padding:6px 12px;font-size:13px}
+.legend{display:flex;gap:12px;justify-content:center;font-size:11px;color:var(--mut);margin-top:10px;flex-wrap:wrap}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-inline-end:4px;vertical-align:-2px}
+.analogs{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;justify-items:center}
+.aclk{text-align:center}
+.aclk svg{filter:drop-shadow(0 0 6px rgba(34,230,255,.35))}
+.aclk .lb{font-size:12px;color:var(--mut);margin-top:4px}
+footer{max-width:1180px;margin:40px auto 0;text-align:center;color:var(--mut);font-size:12px;line-height:1.9}
+@media (max-width:560px){.tlrow,.hr-ticks{grid-template-columns:110px 1fr}}
+</style>
+</head>
+<body data-theme="dark">
+<div class="aurora"></div>
+
+<header>
+  <h1>⏱️ لوحة مقارنة المناطق الزمنية</h1>
+  <div class="sub">Neon TimeDeck — كل الحسابات تتم محلياً في متصفحك، بلا إنترنت</div>
+  <div class="masterclock">
+    <div class="t" id="mcTime">--:--<span class="sec">:--</span></div>
+    <div class="d" id="mcDate">…</div>
+    <div class="tzchip" id="mcTz">…</div>
+  </div>
+  <div class="toolbar">
+    <button class="tgl" id="btnTheme">🌙 / ☀️ المظهر</button>
+    <button class="tgl" id="btnFmt">صيغة ٢٤ / ١٢ ساعة</button>
+    <button class="tgl" id="btnSec">إظهار/إخفاء الثواني</button>
+  </div>
+</header>
+
+<section>
+  <h2>🌍 بطاقات المدن (وقت حي + حالة اليوم)</h2>
+  <div class="grid" id="cards"></div>
+  <div class="addbar">
+    <select id="extraCity"></select>
+    <button class="cta" id="btnAdd">＋ أضف مدينة</button>
+  </div>
+</section>
+
+<section>
+  <h2>🕛 العد التنازلي لبداية اليوم الجديد بتوقيت UTC</h2>
+  <div class="countwrap">
+    <div class="cd" id="utcCd">--:--:--</div>
+    <div class="sub" id="utcCdNote">المتبقي حتى منتصف الليل (00:00) بتوقيت غرينتش</div>
+    <div class="pbar"><i id="utcBar" style="width:0%"></i></div>
+    <div class="sub" id="utcPct"></div>
+  </div>
+</section>
+
+<section>
+  <h2>📊 جدول المقارنة الشامل (اضغط على أي عمود للترتيب)</h2>
+  <div class="tblwrap"><table>
+    <thead><tr>
+      <th data-k="ar">المدينة <span class="arr"></span></th>
+      <th data-k="co">الدولة <span class="arr"></span></th>
+      <th data-k="tz">المنطقة الزمنية <span class="arr"></span></th>
+      <th data-k="off">فرق UTC <span class="arr"></span></th>
+      <th data-k="dst">توقيت صيفي <span class="arr"></span></th>
+      <th data-k="time">الوقت الآن <span class="arr"></span></th>
+      <th data-k="date">التاريخ <span class="arr"></span></th>
+      <th data-k="diff">الفرق عنك <span class="arr"></span></th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>🔁 محول الوقت بين المدن</h2>
+  <div class="conv">
+    <input type="datetime-local" id="cvIn">
+    <span>في</span><select id="cvFrom"></select>
+    <span>⬅</span><select id="cvTo"></select>
+    <button class="cta" id="cvGo">حوّل</button>
+    <button class="tgl" id="cvNow">الآن</button>
+  </div>
+  <div class="result" id="cvOut"></div>
+</section>
+
+<section>
+  <h2>📅 شريط الـ٢٤ ساعة (إضافي ١)</h2>
+  <div class="tblwrap" style="padding:14px"><div class="tl" id="timeline"></div></div>
+</section>
+
+<section>
+  <h2>🤝 مخطط الاجتماعات (إضافي ٢)</h2>
+  <div class="mp-ctl" id="mpCities"></div>
+  <div class="tblwrap" style="padding:14px"><div class="tl" id="mpGrid"></div></div>
+  <div class="legend">
+    <span><i style="background:rgba(61,220,132,.5)"></i>ساعات عمل (9–17)</span>
+    <span><i style="background:rgba(255,176,32,.4)"></i>استيقاظ (7–23)</span>
+    <span><i style="background:rgba(20,30,70,.6)"></i>نوم</span>
+  </div>
+  <div class="best" id="mpBest"></div>
+</section>
+
+<section>
+  <h2>⏰ ساعات تناظرية حية (إضافي ٣)</h2>
+  <div class="analogs" id="analogs"></div>
+</section>
+
+<footer>
+  صُنعت كملف HTML واحد مستقل — لا صور خارجية، لا خوادم، لا تتبع. تكفي فتحها في أي متصفح حديث.<br>
+  التوقيت الصيفي وفرق UTC يُحسبان لحظياً من قاعدة IANA المدمجة في متصفحك عبر واجهة Intl.
+</footer>
+
+<script>
+"use strict";
+/* ================= البيانات ================= */
+const BASE=[
+ {id:'sanaa', ar:'صنعاء',      en:"Sana'a",      co:'اليمن',          flag:'🇾🇪', tz:'Asia/Aden'},
+ {id:'riyadh',ar:'الرياض',     en:'Riyadh',      co:'السعودية',       flag:'🇸🇦', tz:'Asia/Riyadh'},
+ {id:'beijing',ar:'بكين',      en:'Beijing',     co:'الصين',          flag:'🇨🇳', tz:'Asia/Shanghai'},
+ {id:'tokyo', ar:'طوكيو',      en:'Tokyo',       co:'اليابان',        flag:'🇯🇵', tz:'Asia/Tokyo'},
+ {id:'la',    ar:'لوس أنجلوس', en:'Los Angeles', co:'أمريكا',         flag:'🇺🇸', tz:'America/Los_Angeles'},
+ {id:'london',ar:'لندن',       en:'London',      co:'بريطانيا',       flag:'🇬🇧', tz:'Europe/London'},
+];
+const EXTRA=[
+ {id:'istanbul',ar:'إسطنبول',en:'Istanbul',co:'تركيا',flag:'🇹🇷',tz:'Europe/Istanbul'},
+ {id:'cairo',ar:'القاهرة',en:'Cairo',co:'مصر',flag:'🇪🇬',tz:'Africa/Cairo'},
+ {id:'dubai',ar:'دبي',en:'Dubai',co:'الإمارات',flag:'🇦🇪',tz:'Asia/Dubai'},
+ {id:'amman',ar:'عمّان',en:'Amman',co:'الأردن',flag:'🇯🇴',tz:'Asia/Amman'},
+ {id:'kuwait',ar:'الكويت',en:'Kuwait',co:'الكويت',flag:'🇰🇼',tz:'Asia/Kuwait'},
+ {id:'paris',ar:'باريس',en:'Paris',co:'فرنسا',flag:'🇫🇷',tz:'Europe/Paris'},
+ {id:'berlin',ar:'برلين',en:'Berlin',co:'ألمانيا',flag:'🇩🇪',tz:'Europe/Berlin'},
+ {id:'moscow',ar:'موسكو',en:'Moscow',co:'روسيا',flag:'🇷🇺',tz:'Europe/Moscow'},
+ {id:'delhi',ar:'نيودلهي',en:'New Delhi',co:'الهند',flag:'🇮🇳',tz:'Asia/Kolkata'},
+ {id:'kl',ar:'كوالالمبور',en:'Kuala Lumpur',co:'ماليزيا',flag:'🇲🇾',tz:'Asia/Kuala_Lumpur'},
+ {id:'jakarta',ar:'جاكرتا',en:'Jakarta',co:'إندونيسيا',flag:'🇮🇩',tz:'Asia/Jakarta'},
+ {id:'tripoli',ar:'طرابلس',en:'Tripoli',co:'ليبيا',flag:'🇱🇾',tz:'Africa/Tripoli'},
+ {id:'ny',ar:'نيويورك',en:'New York',co:'أمريكا',flag:'🇺🇸',tz:'America/New_York'},
+ {id:'sydney',ar:'سيدني',en:'Sydney',co:'أستراليا',flag:'🇦🇺',tz:'Australia/Sydney'},
+ {id:'utc',ar:'غرينتش UTC',en:'UTC',co:'مرجع عالمي',flag:'🌐',tz:'UTC'},
+];
+const LOCAL_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+/* ================= الحالة والتخزين ================= */
+const store={
+  get(k,d){try{const v=localStorage.getItem('td_'+k);return v==null?d:JSON.parse(v)}catch(e){return d}},
+  set(k,v){try{localStorage.setItem('td_'+k,JSON.stringify(v))}catch(e){}}
+};
+const st={theme:store.get('theme','dark'),h24:store.get('h24',true),sec:store.get('sec',true),
+  added:store.get('added',[]),mpSel:store.get('mpSel',['LOCAL','sanaa','riyadh','london'])};
+document.body.dataset.theme=st.theme;
+
+/* ================= أدوات المناطق الزمنية ================= */
+function P(tz,d){
+  const f=new Intl.DateTimeFormat('en-GB',{timeZone:tz,hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const o={};f.formatToParts(d).forEach(p=>{if(p.type!=='literal')o[p.type]=p.value;});
+  let h=+o.hour;if(h===24)h=0;
+  return{y:+o.year,m:+o.month,d:+o.day,h:h,mi:+o.minute,s:+o.second};}
+function offMs(tz,d){const p=P(tz,d);return Date.UTC(p.y,p.m-1,p.d,p.h,p.mi,p.s)-(d.getTime()-d.getMilliseconds());}
+function hasDst(tz){const y=new Date().getUTCFullYear();return offMs(tz,new Date(Date.UTC(y,0,1)))!==offMs(tz,new Date(Date.UTC(y,6,1)));}
+function dstNow(tz,d){if(!hasDst(tz))return false;const y=d.getUTCFullYear();
+  const j1=offMs(tz,new Date(Date.UTC(y,0,1))),j7=offMs(tz,new Date(Date.UTC(y,6,1)));
+  return offMs(tz,d)===Math.max(j1,j7);}
+function fmtUTC(ms){const a=Math.abs(ms),h=Math.floor(a/36e5),m=Math.round((a%36e5)/6e4);
+  return 'UTC'+(ms<0?'−':'+')+String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');}
+function pad(n){return String(n).padStart(2,'0');}
+function fmtT(h,mi,s){if(st.h24){return pad(h)+':'+pad(mi)+(st.sec?'<span class="sec">:'+pad(s)+'</span>':'');}
+  const ap=h<12?'ص':'م';let h12=h%12;if(h12===0)h12=12;
+  return pad(h12)+':'+pad(mi)+(st.sec?'<span class="sec">:'+pad(s)+'</span>':'')+' '+ap;}
+function fmtDate(tz,d){return new Intl.DateTimeFormat('ar',{timeZone:tz,weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(d);}
+function arHours(x){const xh=Math.floor(x),half=Math.abs(x-xh)>0.01;let base;
+  if(xh===0)base='';else if(xh===1)base='ساعة';else if(xh===2)base='ساعتين';else if(xh<=10)base=xh+' ساعات';else base=xh+' ساعة';
+  return (base+(half?' ونصف':''))||'نصف ساعة';}
+function cities(){const list=[{id:'LOCAL',ar:'توقيتك المحلي',en:'Your device',co:'جهازك',flag:'📱',tz:LOCAL_TZ,local:true}];
+  BASE.forEach(c=>list.push(c));
+  EXTRA.filter(c=>st.added.includes(c.id)).forEach(c=>list.push(c));
+  return list;}
+/* تحويل جدار-الوقت في منطقة معينة إلى لحظة UTC */
+function wallToUtc(tz,y,m,d,h,mi){let u=Date.UTC(y,m-1,d,h,mi);const o1=offMs(tz,new Date(u));u=u-o1;
+  const o2=offMs(tz,new Date(u));if(o2!==o1)u=Date.UTC(y,m-1,d,h,mi)-o2;return new Date(u);}
+function dayShiftWord(cityParts,localParts){
+  const a=Date.UTC(cityParts.y,cityParts.m-1,cityParts.d),b=Date.UTC(localParts.y,localParts.m-1,localParts.d);
+  const dd=Math.round((a-b)/864e5);
+  if(dd===0)return'';if(dd===1)return' — يومها التالي بدأ قبلك';return' — ما زالت في يومك السابق';}
+
+/* ================= العرض: البطاقات ================= */
+const cardsEl=document.getElementById('cards');
+const cardEls={};
+function buildCards(){
+  cardsEl.innerHTML='';Object.keys(cardEls).forEach(k=>delete cardEls[k]);
+  const localOff=offMs(LOCAL_TZ,new Date());
+  cities().forEach((c,i)=>{
+    const el=document.createElement('div');el.className='card'+(c.local?' local':'');el.style.animationDelay=(i*60)+'ms';
+    el.innerHTML=(c.id!=='LOCAL'?'<button class="x" title="إزالة" data-rm="'+c.id+'">✕</button>':'')
+      +'<div class="sky"></div>'
+      +'<div class="row"><div><span class="flag">'+c.flag+'</span><span class="city">'+c.ar+'</span><div class="en">'+c.en+' · '+c.tz+'</div></div></div>'
+      +'<div class="clock" dir="ltr">--:--</div><div class="date">…</div><div class="badges"></div>';
+    cardsEl.appendChild(el);
+    cardEls[c.id]={el,sky:el.querySelector('.sky'),clock:el.querySelector('.clock'),date:el.querySelector('.date'),badges:el.querySelector('.badges'),c,localOff};
+  });
+}
+function updCards(now){
+  const lp=P(LOCAL_TZ,now),lo=offMs(LOCAL_TZ,now);
+  for(const id in cardEls){const R=cardEls[id];const c=R.c;const p=P(c.tz,now);const o=offMs(c.tz,now);
+    R.clock.innerHTML=fmtT(p.h,p.mi,p.s);
+    const day=p.h>=6&&p.h<18;
+    R.sky.className='sky '+(day?'day':'night');
+    R.date.textContent=fmtDate(c.tz,now);
+    const dh=(o-lo)/36e5;let b='';
+    if(c.local)b+='<span class="badge mine">✨ منصّتك</span>';
+    else if(Math.abs(dh)<0.001)b+='<span class="badge same">🤝 يطابق توقيتك</span>';
+    else if(dh>0)b+='<span class="badge ahead">⏫ متقدّمة عنك بـ'+arHours(dh)+'</span>';
+    else b+='<span class="badge behind">⏬ متأخرة عنك بـ'+arHours(-dh)+'</span>';
+    if(!c.local){const sw=dayShiftWord(p,lp);if(sw)b+='<span class="badge">'+sw.slice(3)+'</span>';}
+    b+='<span class="badge">'+fmtUTC(o)+'</span>';
+    if(dstNow(c.tz,now))b+='<span class="badge dst">☀️ توقيت صيفي نشط</span>';
+    b+='<span class="badge '+(day?'day':'night')+'">'+(day?'☀️ نهار':'🌙 ليل')+'</span>';
+    R.badges.innerHTML=b;}
+}
+/* ================= العرض: العد التنازلي UTC ================= */
+function updUtc(now){
+  const next=Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()+1,0,0,0);
+  let rem=Math.max(0,next-now.getTime());const hh=Math.floor(rem/36e5),mm=Math.floor(rem%36e5/6e4),ss=Math.floor(rem%6e4/1e3);
+  document.getElementById('utcCd').textContent=pad(hh)+':'+pad(mm)+':'+pad(ss);
+  const elapsed=now.getTime()-Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate(),0,0,0);
+  const pct=elapsed/864e5*100;
+  document.getElementById('utcBar').style.width=pct.toFixed(2)+'%';
+  document.getElementById('utcPct').textContent='انقضى '+pct.toFixed(1)+'% من يوم UTC الحالي';
+}
+
+/* ================= العرض: الجدول ================= */
+let sortK='ar',sortDir=1;const tbody=document.getElementById('tbody');
+function sortRows(rows){return rows.sort((a,b)=>{
+  const va=a[sortK],vb=b[sortK];
+  const r=(typeof va==='number'&&typeof vb==='number')?va-vb:String(va).localeCompare(String(vb),'ar');
+  return r*sortDir;});}
+function updTable(now){
+  const lo=offMs(LOCAL_TZ,now);
+  const rows=cities().map(c=>{const o=offMs(c.tz,now);const p=P(c.tz,now);
+    return{id:c.id,ar:c.ar,co:c.co,tz:c.tz,off:o/36e5,dst:hasDst(c.tz)?(dstNow(c.tz,now)?2:1):0,
+      time:o/36e5,timeStr:pad(p.h)+':'+pad(p.mi)+(st.sec?':'+pad(p.s):''),date:fmtDate(c.tz,now),diff:(o-lo)/36e5};});
+  const sorted=sortRows(rows);
+  document.querySelectorAll('th .arr').forEach(a=>a.textContent='');
+  const th=document.querySelector('th[data-k="'+sortK+'"] .arr');if(th)th.textContent=sortDir>0?'▲':'▼';
+  tbody.innerHTML=sorted.map(r=>{
+    const dstTxt=r.dst===0?'— لا يوجد':(r.dst===2?'☀️ نشط الآن':'شتاءً/خاملاً الآن');
+    const d=r.diff;const dTxt=Math.abs(d)<0.001?'مطابق ✔':(d>0?'+'+d+' س':'−'+Math.abs(d)+' س');
+    return '<tr><td>'+r.ar+'</td><td>'+r.co+'</td><td class="num">'+r.tz+'</td><td class="num">'+fmtUTC(r.off*36e5)+'</td><td>'+dstTxt+'</td><td class="num">'+r.timeStr+'</td><td>'+r.date+'</td><td class="num">'+dTxt+'</td></tr>';}).join('');
+}
+document.querySelectorAll('th').forEach(th=>th.addEventListener('click',()=>{
+  const k=th.dataset.k;if(sortK===k)sortDir*=-1;else{sortK=k;sortDir=1;}updTable(new Date());}));
+
+/* ================= العرض: المحول ================= */
+const cvIn=document.getElementById('cvIn'),cvFrom=document.getElementById('cvFrom'),cvTo=document.getElementById('cvTo'),cvOut=document.getElementById('cvOut');
+function fillConv(){
+  const opts=cities().map(c=>'<option value="'+c.id+'">'+c.flag+' '+c.ar+' ('+c.tz+')</option>').join('');
+  cvFrom.innerHTML=opts;cvTo.innerHTML=opts;
+  if(!cvFrom.value)cvFrom.value='LOCAL';cvTo.value=cities().some(c=>c.id==='tokyo')?'tokyo':cities()[1].id;
+  if(!cvIn.value){const p=P(LOCAL_TZ,new Date());cvIn.value=p.y+'-'+pad(p.m)+'-'+pad(p.d)+'T'+pad(p.h)+':'+pad(p.mi);}
+}
+function tzOfSel(v){const c=cities().find(x=>x.id===v);return c?c.tz:LOCAL_TZ;}
+function nameOf(v){const c=cities().find(x=>x.id===v);return c?c.ar:'';}
+function doConvert(){
+  const v=cvIn.value;if(!v){cvOut.innerHTML='<span class="note">أدخل تاريخاً ووقتاً أولاً</span>';return;}
+  const m=v.match(/(\d+)-(\d+)-(\d+)T(\d+):(\d+)/);if(!m)return;
+  const src=tzOfSel(cvFrom.value),dst=tzOfSel(cvTo.value);
+  const utc=wallToUtc(src,+m[1],+m[2],+m[3],+m[4],+m[5]);
+  const p=P(dst,utc);const dsrc=P(src,utc);
+  const dh=-(offMs(src,utc)-offMs(dst,utc))/36e5;
+  let rel=Math.abs(dh)<0.001?'نفس التوقيت تماماً':(dh>0?nameOf(cvTo.value)+' متقدّمة بـ'+arHours(dh)+' عن '+nameOf(cvFrom.value):nameOf(cvTo.value)+' متأخرة بـ'+arHours(-dh)+' عن '+nameOf(cvFrom.value));
+  cvOut.innerHTML='<div>'+nameOf(cvFrom.value)+': '+fmtT(dsrc.h,dsrc.mi,dsrc.s)+' — '+fmtDate(src,utc)+'</div>'
+   +'<div class="big" dir="ltr">'+fmtT(p.h,p.mi,p.s)+'</div>'
+   +'<div>'+nameOf(cvTo.value)+' — '+fmtDate(dst,utc)+'</div>'
+   +'<div class="note">'+rel+' · فرق UTC: '+fmtUTC(offMs(dst,utc))+'</div>';
+}
+document.getElementById('cvGo').addEventListener('click',doConvert);
+document.getElementById('cvNow').addEventListener('click',()=>{const p=P(LOCAL_TZ,new Date());cvIn.value=p.y+'-'+pad(p.m)+'-'+pad(p.d)+'T'+pad(p.h)+':'+pad(p.mi);doConvert();});
+
+/* ================= إضافي ١: شريط 24 ساعة ================= */
+function updTimeline(now){
+  const tl=document.getElementById('timeline');let html='<div class="hr-ticks"><div></div><div class="ticks">'+
+    [0,2,4,6,8,10,12,14,16,18,20,22,24].map(h=>'<span>'+h+'</span>').join('')+'</div></div>';
+  cities().forEach(c=>{
+    const p=P(c.tz,now);const frac=(p.h+p.mi/60+p.s/3600)/24*100;
+    html+='<div class="tlrow"><div class="nm">'+c.flag+' '+c.ar+(c.local?' ✨':'')+'</div>'
+     +'<div class="tlbar">'
+     +'<div class="seg nite" style="inset-inline-start:0;width:'+(6/24*100)+'%"></div>'
+     +'<div class="seg work" style="inset-inline-start:'+(9/24*100)+'%;width:'+(8/24*100)+'%"></div>'
+     +'<div class="seg nite" style="inset-inline-start:'+(18/24*100)+'%;width:'+(6/24*100)+'%"></div>'
+     +'<div class="now" title="'+pad(p.h)+':'+pad(p.mi)+'" style="inset-inline-start:'+frac.toFixed(3)+'%"></div>'
+     +'</div></div>';});
+  tl.innerHTML=html;
+}
+
+/* ================= إضافي ٢: مخطط الاجتماعات ================= */
+function quality(h){if(h>=9&&h<17)return 2;if(h>=7&&h<23)return 1;return 0;}
+function updMeeting(){
+  const ctl=document.getElementById('mpCities');
+  ctl.innerHTML=cities().map(c=>{const on=st.mpSel.includes(c.id);
+    return '<label class="chk"><input type="checkbox" data-mp="'+c.id+'"'+(on?' checked':'')+'> '+c.flag+' '+c.ar+'</label>';}).join('');
+  ctl.querySelectorAll('input').forEach(cb=>cb.addEventListener('change',()=>{
+    st.mpSel=Array.from(ctl.querySelectorAll('input:checked')).map(x=>x.dataset.mp);store.set('mpSel',st.mpSel);updMeeting();}));
+  const now=new Date();const sel=cities().filter(c=>st.mpSel.includes(c.id));
+  const grid=document.getElementById('mpGrid');
+  if(!sel.length){grid.innerHTML='<div class="sub" style="text-align:center;padding:10px">اختر مدينتين على الأقل للمقارنة</div>';document.getElementById('mpBest').innerHTML='';return;}
+  let html='<div class="hr-ticks"><div></div><div class="ticks">'+[0,4,8,12,16,20,24].map(h=>'<span>'+h+'</span>').join('')+'</div></div>';
+  sel.forEach(c=>{
+    const p=P(c.tz,now);const off=offMs(c.tz,now);const frac=(p.h+p.mi/60)/24*100;
+    let cells='';for(let lh=0;lh<24;lh++){const q=quality(lh);const col=q===2?'rgba(61,220,132,.5)':(q===1?'rgba(255,176,32,.38)':'rgba(20,30,70,.55)');
+      cells+='<div class="seg" style="inset-inline-start:'+(lh/24*100)+'%;width:'+(1/24*100)+'%;background:'+col+'"></div>';}
+    html+='<div class="tlrow"><div class="nm">'+c.flag+' '+c.ar+(c.local?' ✨':'')+'</div><div class="tlbar">'+cells+'<div class="now" style="inset-inline-start:'+frac.toFixed(3)+'%"></div></div></div>';});
+  grid.innerHTML=html;
+  /* أفضل نافذة 3 ساعات بمقياس أدنى جودة بين المدن */
+  const offs=sel.map(c=>offMs(c.tz,now));
+  const base=Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate());
+  let best=null;
+  for(let start=0;start<=21;start++){
+    let minQ=3,sum=0;const t0=base+start*36e5;
+    for(let k=0;k<3;k++){const tk=t0+k*36e5;
+      for(let i=0;i<offs.length;i++){const lh=new Date(tk+offs[i]).getUTCHours();const q=quality(lh);if(q<minQ)minQ=q;sum+=q;}}
+    const score=minQ*100+sum;
+    const centerPref=-Math.abs(start+1.5-12.5)*0.1;
+    const total=score+centerPref;
+    if(!best||total>best.total)best={start,total,minQ};}
+  const maps=sel.map(c=>{const o=offMs(c.tz,now);const d0=new Date(base+best.start*36e5+o),d1=new Date(base+(best.start+3)*36e5+o);
+    return '<span class="m">'+c.flag+' '+c.ar+': <b class="num" dir="ltr">'+pad(d0.getUTCHours())+':00–'+pad(d1.getUTCHours())+':00</b></span>';}).join('');
+  const note=best.minQ===2?'ممتاز — ضمن ساعات العمل للجميع':(best.minQ===1?'مقبول — ضمن الاستيقاظ للجميع':'صعب — شخص ما سيكون نائماً 😴');
+  document.getElementById('mpBest').innerHTML='<div class="sub">أفضل نافذة اجتماع (٣ ساعات) — '+note+'</div>'
+   +'<div class="slot num" dir="ltr">'+pad(best.start)+':00 – '+pad(best.start+3)+':00 UTC</div><div class="maps">'+maps+'</div>';
+}
+
+/* ================= إضافي ٣: ساعات تناظرية ================= */
+const analogsEl=document.getElementById('analogs');const aclkEls={};
+function buildAnalogs(){
+  analogsEl.innerHTML='';Object.keys(aclkEls).forEach(k=>delete aclkEls[k]);
+  cities().forEach(c=>{
+    let ticks='';for(let k=0;k<12;k++){const a=k*30*Math.PI/180;const x1=50+42*Math.sin(a),y1=50-42*Math.cos(a),x2=50+(k%3?45:42)*Math.sin(a),y2=50-(k%3?45:42)*Math.cos(a);
+      ticks+='<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" style="stroke:var(--mut)" stroke-width="'+(k%3?1:2.5)+'"/>';}
+    const div=document.createElement('div');div.className='aclk';
+    div.innerHTML='<svg width="110" height="110" viewBox="0 0 100 100">'
+      +'<circle cx="50" cy="50" r="47" style="fill:var(--card);stroke:var(--neon)" stroke-width="1.5"/>'+ticks
+      +'<line class="hh" x1="50" y1="50" x2="50" y2="28" style="stroke:var(--txt)" stroke-width="4" stroke-linecap="round"/>'
+      +'<line class="mm" x1="50" y1="50" x2="50" y2="18" style="stroke:var(--neon)" stroke-width="2.5" stroke-linecap="round"/>'
+      +'<line class="ss" x1="50" y1="56" x2="50" y2="13" style="stroke:var(--neon2)" stroke-width="1.2" stroke-linecap="round"/>'
+      +'<circle cx="50" cy="50" r="3" style="fill:var(--neon2)"/>'
+      +'</svg><div class="lb">'+c.flag+' '+c.ar+'</div>';
+    analogsEl.appendChild(div);
+    aclkEls[c.id]={hh:div.querySelector('.hh'),mm:div.querySelector('.mm'),ss:div.querySelector('.ss'),c};});
+}
+function updAnalogs(now){
+  for(const id in aclkEls){const R=aclkEls[id];const p=P(R.c.tz,now);
+    const sa=(p.s+now.getMilliseconds()/1e3)*6, ma=p.mi*6+sa/60, ha=(p.h%12)*30+ma/12;
+    R.ss.setAttribute('transform','rotate('+sa+' 50 50)');
+    R.mm.setAttribute('transform','rotate('+ma+' 50 50)');
+    R.hh.setAttribute('transform','rotate('+ha+' 50 50)');}
+}
+
+/* ================= الأحداث ================= */
+const extraSel=document.getElementById('extraCity');
+function fillExtra(){extraSel.innerHTML='<option value="">…اختر مدينة إضافية…</option>'+EXTRA.filter(c=>!st.added.includes(c.id)).map(c=>'<option value="'+c.id+'">'+c.flag+' '+c.ar+'</option>').join('');}
+document.getElementById('btnAdd').addEventListener('click',()=>{const v=extraSel.value;if(!v)return;st.added.push(v);store.set('added',st.added);rebuild();});
+cardsEl.addEventListener('click',e=>{const rm=e.target.dataset?e.target.dataset.rm:null;if(!rm)return;
+  if(BASE.some(c=>c.id===rm)){alert('المدن الأساسية الست ثابتة حسب التصميم 🙂');return;}
+  st.added=st.added.filter(x=>x!==rm);store.set('added',st.added);rebuild();});
+document.getElementById('btnTheme').addEventListener('click',()=>{st.theme=st.theme==='dark'?'light':'dark';store.set('theme',st.theme);document.body.dataset.theme=st.theme;});
+document.getElementById('btnFmt').addEventListener('click',()=>{st.h24=!st.h24;store.set('h24',st.h24);tick();});
+document.getElementById('btnSec').addEventListener('click',()=>{st.sec=!st.sec;store.set('sec',st.sec);tick();});
+
+/* ================= الحلقة الرئيسية ================= */
+function tick(){
+  const now=new Date();
+  const p=P(LOCAL_TZ,now);
+  document.getElementById('mcTime').innerHTML=(function(){
+    let core;
+    if(st.h24){core=pad(p.h)+'<span class="blink">:</span>'+pad(p.mi);}
+    else{const ap=p.h<12?'ص':'م';let h12=p.h%12;if(h12===0)h12=12;core=pad(h12)+'<span class="blink">:</span>'+pad(p.mi)+' '+ap;}
+    return core+(st.sec?'<span class="sec">:'+pad(p.s)+'</span>':'');
+  })();
+  document.getElementById('mcDate').textContent=fmtDate(LOCAL_TZ,now);
+  document.getElementById('mcTz').textContent='منطقتك: '+LOCAL_TZ+' ('+fmtUTC(offMs(LOCAL_TZ,now))+')';
+  updCards(now);updUtc(now);updTable(now);updTimeline(now);updAnalogs(now);
+}
+function rebuild(){buildCards();buildAnalogs();fillExtra();fillConv();updMeeting();tick();}
+rebuild();doConvert();
+setInterval(()=>{tick();},500);
+</script>
+</body>
+</html>

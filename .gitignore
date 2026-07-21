@@ -16,3 +16,7 @@
 local.properties
 .env
 debug.keystore
+
+# Vosk model is downloaded at build time (see app/build.gradle.kts) — never commit it
+/app/src/main/assets/vosk-model-en-base/
+/app/src/main/assets/vosk-model-ar-small/
