@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Settings
@@ -26,6 +27,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.example.data.CommandLogEntity
 import com.example.managers.FileHit
 import com.example.managers.HealthReport
@@ -49,6 +52,12 @@ fun AppScreen(viewModel: MainViewModel = hiltViewModel()) {
     val awaitingPrompt by viewModel.awaitingPrompt.collectAsStateWithLifecycle()
     var showSettings by remember { mutableStateOf(false) }
     var showCommandCenter by remember { mutableStateOf(false) }
+    var showFileLibrary by remember { mutableStateOf(false) }
+    val indexedFiles by viewModel.indexedFiles.collectAsStateWithLifecycle()
+    // منتقي شجرة مجلدات SAF — «＋ مجلد» في شاشة المكتبة يمرر الـURI للفهرسة.
+    val treeLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri -> uri?.let { viewModel.addUserFolder(it) } }
 
     Scaffold(
         topBar = {
@@ -72,6 +81,12 @@ fun AppScreen(viewModel: MainViewModel = hiltViewModel()) {
                         modifier = Modifier.testTag("command_center_button")
                     ) {
                         Icon(Icons.Default.List, contentDescription = "مركز الأوامر")
+                    }
+                    IconButton(
+                        onClick = { showFileLibrary = true },
+                        modifier = Modifier.testTag("file_library_button")
+                    ) {
+                        Icon(Icons.Default.Folder, contentDescription = "مكتبة الملفات")
                     }
                     IconButton(
                         onClick = { showSettings = true },
@@ -164,6 +179,18 @@ fun AppScreen(viewModel: MainViewModel = hiltViewModel()) {
             hits = hits,
             onOpen = { viewModel.openFileHit(it) },
             onDismiss = { viewModel.dismissFileHits() }
+        )
+    }
+
+    if (showFileLibrary) {
+        FileLibraryDialog(
+            files = indexedFiles,
+            indexingBusy = false,
+            onRefresh = { viewModel.refreshFileIndex() },
+            onAddFolder = { treeLauncher.launch(null) },
+            onClearFixes = { viewModel.clearFileChoiceFixes() },
+            onToggleHidden = { uri, hidden -> viewModel.setIndexedFileHidden(uri, hidden) },
+            onDismiss = { showFileLibrary = false }
         )
     }
 

@@ -445,6 +445,9 @@ class CognitiveEngine @Inject constructor(
                 else -> ClarifyAnswer.PassThrough
             }
             is Clarify.Choice -> {
+                // «نعم» أمام قائمة مرقمة = الخيار الأول (المرشّح الأعلى) —
+                // بدون هذا كانت الموافقة اللفظية تضيع بين الشقوق.
+                if (yes) return ClarifyAnswer.Proceed(clarify.options.first().second)
                 ordinalIndex(input)?.let { idx ->
                     clarify.options.getOrNull(idx)?.let { return ClarifyAnswer.Proceed(it.second) }
                     return ClarifyAnswer.Cancel("ليس عندي هذا الخيار، ألغيت الاختيار")
@@ -471,10 +474,12 @@ class CognitiveEngine @Inject constructor(
         val words = mapOf(
             "الاول" to 0, "الأول" to 0, "اول" to 0, "واحد" to 0, "الأولى" to 0, "الاولى" to 0,
             "الثاني" to 1, "ثاني" to 1, "الثانيه" to 1, "الثانية" to 1, "اثنين" to 1,
-            "الثالث" to 2, "ثالث" to 2, "الثالثه" to 2, "الثالثة" to 2, "ثلاثه" to 2, "ثلاثة" to 2
+            "الثالث" to 2, "ثالث" to 2, "الثالثه" to 2, "الثالثة" to 2, "ثلاثه" to 2, "ثلاثة" to 2,
+            "الرابع" to 3, "رابع" to 3, "الرابعه" to 3, "الرابعة" to 3, "اربعه" to 3, "أربعة" to 3,
+            "الخامس" to 4, "خامس" to 4, "الخامسه" to 4, "الخامسة" to 4, "خمسه" to 4, "خمسة" to 4
         )
         words.entries.firstOrNull { t.contains(it.key) }?.let { return it.value }
-        return Regex("^\\s*([123])\\s*$").find(t)?.groupValues?.get(1)?.toIntOrNull()?.minus(1)
+        return Regex("^\\s*([1-9])\\s*$").find(t)?.groupValues?.get(1)?.toIntOrNull()?.minus(1)
     }
 
     // ------------------------------------------------------------------

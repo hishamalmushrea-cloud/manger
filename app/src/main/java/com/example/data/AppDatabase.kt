@@ -10,9 +10,11 @@ import androidx.room.RoomDatabase
         LearnedCommandEntity::class,
         CommandEventEntity::class,
         UserFactEntity::class,
-        SelfStatEntity::class
+        SelfStatEntity::class,
+        FileIndexEntity::class,
+        ChoiceFixEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -22,4 +24,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun commandEventDao(): CommandEventDao
     abstract fun userFactDao(): UserFactDao
     abstract fun selfStatDao(): SelfStatDao
+    abstract fun fileIndexDao(): FileIndexDao
+    abstract fun choiceFixDao(): ChoiceFixDao
 }

@@ -1,5 +1,8 @@
 package com.example.processor
 
+import com.example.files.FileIndexer
+import com.example.files.FilePlaybackManager
+import com.example.files.VoiceFileSearchManager
 import com.example.managers.MusicManager
 import javax.inject.Inject
 
@@ -10,7 +13,10 @@ import javax.inject.Inject
  *  - «أوقف الموسيقى» / «الأغنية التالية» / «الأغنية السابقة»
  */
 class MusicStrategy @Inject constructor(
-    private val musicManager: MusicManager
+    private val musicManager: MusicManager,
+    private val voiceFiles: VoiceFileSearchManager,
+    private val indexer: FileIndexer,
+    private val playback: FilePlaybackManager
 ) : CommandStrategy {
 
     override fun canHandle(command: String): Boolean {
@@ -46,6 +52,21 @@ class MusicStrategy @Inject constructor(
 
         val query = extractQuery(command)
         val wantsRandom = query.isBlank() || RANDOM_WORDS.any { command.contains(" $it ") || command.endsWith(" $it") }
+
+        // أولاً: مشغل هاي مانجر الداخلي عبر الفهرس المحلي — تحكم صوتي كامل
+        // (التالي/السابق/كرر/عشوائي/واصل) وقائمة تشغيل حقيقية بدل مقطع وحيد.
+        run {
+            indexer.ensureIndexed()
+            val queue = if (wantsRandom) voiceFiles.randomAudioQueue(40) else voiceFiles.searchAudio(query, 25)
+            if (queue.isNotEmpty() && playback.playQueue(queue, 0)) {
+                val first = queue.first()
+                val artist = if (first.artist.isNotBlank()) " — ${first.artist}" else ""
+                val queueNote = if (queue.size > 1) " — القائمة فيها ${queue.size}، قل: التالي أو السابق" else ""
+                return CommandResult(true, "شغّلت لك: ${first.stem.ifBlank { first.name }}$artist$queueNote")
+            }
+        }
+
+        // الاحتياط: البحث الحي القديم عبر MediaStore ثم تسليم المقطع خارجياً.
         val track = if (wantsRandom) musicManager.randomTrack() else musicManager.findTrack(query)
 
         if (track == null) {

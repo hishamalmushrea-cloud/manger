@@ -12,6 +12,9 @@ import com.example.data.MIGRATION_1_2
 import com.example.data.MIGRATION_2_3
 import com.example.data.MIGRATION_3_4
 import com.example.data.MIGRATION_4_5
+import com.example.data.MIGRATION_5_6
+import com.example.data.FileIndexDao
+import com.example.data.ChoiceFixDao
 import com.example.data.ScheduledTaskDao
 import com.example.data.SelfStatDao
 import com.example.data.UserFactDao
@@ -39,7 +42,7 @@ object AppModule {
             context,
             AppDatabase::class.java,
             "hey_manager_db"
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).build()
     }
 
     @Provides
@@ -68,6 +71,18 @@ object AppModule {
     }
 
     @Provides
+    fun provideFileIndexDao(database: AppDatabase): FileIndexDao {
+        return database.fileIndexDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideChoiceFixDao(database: AppDatabase): ChoiceFixDao {
+        return database.choiceFixDao()
+    }
+
+    @Provides
+    @Singleton
     fun provideSelfStatDao(database: AppDatabase): SelfStatDao {
         return database.selfStatDao()
     }

@@ -63,7 +63,10 @@ class MainViewModel @Inject constructor(
     private val volumeManager: VolumeManager,
     private val conversationContext: ConversationContextManager,
     private val preferenceStore: PreferenceStore,
-    private val cognitiveEngine: CognitiveEngine
+    private val cognitiveEngine: CognitiveEngine,
+    private val fileIndexer: com.example.files.FileIndexer,
+    private val fileIndexDao: com.example.data.FileIndexDao,
+    private val choiceFixDao: com.example.data.ChoiceFixDao
 ) : ViewModel(), TextToSpeech.OnInitListener {
 
     /** متعرف الأوامر العربي المحلي (Vosk) — لا إنترنت ولا مفاتيح API. */
@@ -125,6 +128,50 @@ class MainViewModel @Inject constructor(
     fun openFileHit(hit: FileHit) {
         val ok = fileSearchManager.open(hit)
         speak(if (ok) "فتحت ${hit.name}" else "لا يوجد تطبيق يفتح ${hit.name}")
+    }
+
+    // ---------------- شاشة مكتبة الملفات (الفهرس المحلي) ----------------
+
+    /** كل ملفات الفهرس مباشرة من Room — تتحدث الشاشة تلقائياً مع كل فحص. */
+    val indexedFiles = fileIndexDao.observeAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList<com.example.data.FileIndexEntity>())
+
+    /** زر «إعادة الفهرسة الآن» — فحص كامل فوري. */
+    fun refreshFileIndex() {
+        viewModelScope.launch {
+            val summary = fileIndexer.ensureIndexed(force = true)
+            speak("تمت فهرسة ${summary.total} ملفات في ${summary.tookMs / 1000} ثوانٍ")
+        }
+    }
+
+    /** إخفاء/إظهار ملف من نتائج البحث الصوتي. */
+    fun setIndexedFileHidden(uriString: String, hidden: Boolean) {
+        viewModelScope.launch { fileIndexDao.setHidden(uriString, hidden) }
+    }
+
+    /** زر «إضافة مجلد» — يحفظ إذن شجرة SAF الدائم ويفهرسها فوراً. */
+    fun addUserFolder(treeUri: android.net.Uri) {
+        try {
+            context.contentResolver.takePersistableUriPermission(
+                treeUri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        } catch (e: Exception) {
+            speak("تعذر حفظ إذن المجلد")
+            return
+        }
+        viewModelScope.launch {
+            fileIndexer.addSafTree(treeUri.toString())
+            fileIndexer.ensureIndexed(force = true)
+            speak("أضفت المجلد للفهرس — صارت ملفاته قابلة للبحث الصوتي")
+        }
+    }
+
+    /** «انسَ تفضيلات اختياري» — يمسح جدول التعلم من التصحيح للملفات. */
+    fun clearFileChoiceFixes() {
+        viewModelScope.launch {
+            choiceFixDao.clear()
+            speak("نسيت كل تفضيلات اختيار الملفات")
+        }
     }
 
     // ---------------- API key entered from the in-app settings dialog ----------------
@@ -952,7 +999,16 @@ class MainViewModel @Inject constructor(
         result.healthReport?.let { _healthReport.value = it }
         result.fileHits?.let { _fileHits.value = it }
         if (result.success) {
-            respond(result.message)
+            // نتيجة متعددة ← سؤال اختيار مرقّم (آلية Clarify.Choice الجاهزة):
+            // «الثاني/الثالث» أو اسم الملف يُنفَّذ كأمر تالٍ في نفس الجلسة.
+            val cq = result.choiceQuestion
+            if (cq != null && result.choiceOptions.isNotEmpty()) {
+                pendingClarify = Clarify.Choice(cq, result.choiceOptions)
+                _awaitingPrompt.value = cq.take(40)
+                ask(cq)
+            } else {
+                respond(result.message)
+            }
             return
         }
         cognitiveEngine.noteFailure(result, durationMs)

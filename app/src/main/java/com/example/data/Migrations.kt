@@ -82,3 +82,47 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         )
     }
 }
+
+/**
+ * v5 -> v6: البحث الصوتي عن الملفات — جدول الفهرس المحلي file_index (لقطة
+ * موحّدة: نوع/اسم/فنان/مجلد/URI/إحصاءات تشغيل) وجدول تفضيلات التصحيح
+ * file_choice_fixes («أقصد الثانية» ← تتعلم). البيانات القديمة سليمة.
+ */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `file_index` (" +
+                "`uriString` TEXT NOT NULL PRIMARY KEY, " +
+                "`mediaStoreId` INTEGER NOT NULL DEFAULT -1, " +
+                "`kind` TEXT NOT NULL, " +
+                "`name` TEXT NOT NULL, " +
+                "`nameNorm` TEXT NOT NULL DEFAULT '', " +
+                "`stem` TEXT NOT NULL DEFAULT '', " +
+                "`artist` TEXT NOT NULL DEFAULT '', " +
+                "`artistNorm` TEXT NOT NULL DEFAULT '', " +
+                "`album` TEXT NOT NULL DEFAULT '', " +
+                "`folder` TEXT NOT NULL DEFAULT '', " +
+                "`folderPath` TEXT NOT NULL DEFAULT '', " +
+                "`mime` TEXT NOT NULL DEFAULT '', " +
+                "`durationMs` INTEGER NOT NULL DEFAULT 0, " +
+                "`sizeBytes` INTEGER NOT NULL DEFAULT 0, " +
+                "`dateModified` INTEGER NOT NULL DEFAULT 0, " +
+                "`dateAdded` INTEGER NOT NULL DEFAULT 0, " +
+                "`playCount` INTEGER NOT NULL DEFAULT 0, " +
+                "`lastPlayedAt` INTEGER NOT NULL DEFAULT 0, " +
+                "`lastPositionMs` INTEGER NOT NULL DEFAULT 0, " +
+                "`hidden` INTEGER NOT NULL DEFAULT 0, " +
+                "`fromSaf` INTEGER NOT NULL DEFAULT 0)"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_file_index_kind` ON `file_index` (`kind`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_file_index_nameNorm` ON `file_index` (`nameNorm`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_file_index_artistNorm` ON `file_index` (`artistNorm`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_file_index_folder` ON `file_index` (`folder`)")
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `file_choice_fixes` (" +
+                "`queryNorm` TEXT NOT NULL PRIMARY KEY, " +
+                "`uriString` TEXT NOT NULL, " +
+                "`at` INTEGER NOT NULL)"
+        )
+    }
+}

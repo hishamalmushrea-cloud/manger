@@ -118,6 +118,7 @@ class SelfEvaluationEngine @Inject constructor(
         "youtube" -> "يوتيوب"
         "music" -> "الموسيقى"
         "file_search" -> "البحث عن الملفات"
+        "playback" -> "التحكم بالتشغيل الصوتي"
         "search" -> "البحث"
         "open_app" -> "فتح التطبيقات"
         "gemini" -> "جيميناي"

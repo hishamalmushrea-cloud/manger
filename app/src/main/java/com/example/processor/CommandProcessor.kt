@@ -26,7 +26,14 @@ data class CommandResult(
     /** Optional rich payload for the on-screen Device Health dialog. */
     val healthReport: com.example.managers.HealthReport? = null,
     /** Optional clickable file-search results for the on-screen dialog. */
-    val fileHits: List<com.example.managers.FileHit>? = null
+    val fileHits: List<com.example.managers.FileHit>? = null,
+    /**
+     * سؤال اختيار متعدد معلّق (نتائج بحث ملفات متعددة مثلاً): عند وجوده يضعه
+     * MainViewModel في pendingClarify كـ Clarify.Choice ويسأله بنبرة سؤال،
+     * والخيارات أزواج «تسمية محكية ← أمر قابل للتنفيذ» (مثل «شغل نتيجة 2»).
+     */
+    val choiceQuestion: String? = null,
+    val choiceOptions: List<Pair<String, String>> = emptyList()
 )
 
 @Singleton
@@ -42,8 +49,9 @@ class CommandProcessor @Inject constructor(
     whatsAppStrategy: WhatsAppStrategy,
     smsStrategy: SmsStrategy,
     youTubeStrategy: YouTubeStrategy,
-    musicStrategy: MusicStrategy,
+    playbackControlStrategy: PlaybackControlStrategy,
     fileSearchStrategy: FileSearchStrategy,
+    musicStrategy: MusicStrategy,
     searchStrategy: SearchStrategy,
     appOpenerStrategy: AppOpenerStrategy,
     geminiStrategy: GeminiStrategy
@@ -66,8 +74,9 @@ class CommandProcessor @Inject constructor(
         whatsAppStrategy,
         smsStrategy,
         youTubeStrategy,
-        musicStrategy,
+        playbackControlStrategy,
         fileSearchStrategy,
+        musicStrategy,
         searchStrategy,
         appOpenerStrategy,
         geminiStrategy
@@ -122,8 +131,9 @@ class CommandProcessor @Inject constructor(
         is WhatsAppStrategy -> "whatsapp" to "تجهيز رسالة واتساب"
         is SmsStrategy -> "sms" to "تجهيز رسالة SMS"
         is YouTubeStrategy -> "youtube" to "بحث يوتيوب"
+        is PlaybackControlStrategy -> "playback" to "التحكم بالتشغيل الصوتي"
         is MusicStrategy -> "music" to "تشغيل الموسيقى"
-        is FileSearchStrategy -> "file_search" to "البحث عن ملفات"
+        is FileSearchStrategy -> "file_search" to "البحث عن ملفات وتشغيلها"
         is SearchStrategy -> "search" to "بحث في الإنترنت"
         is AppOpenerStrategy -> "open_app" to "فتح تطبيق"
         is GeminiStrategy -> "gemini" to "رد ذكاء اصطناعي"
