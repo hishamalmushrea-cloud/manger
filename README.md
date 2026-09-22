@@ -1,9 +1,15 @@
-# manger
+# 🌟 manger
 
-[![GitHub Repo stars](https://img.shields.io/github/stars/hishamalmushrea-cloud/manger?style=social)](https://github.com/hishamalmushrea-cloud/manger)
-[![GitHub](https://img.shields.io/github/license/hishamalmushrea-cloud/manger)](https://github.com/hishamalmushrea-cloud/manger/blob/main/LICENSE)
+![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white) ![Repo Size](https://img.shields.io/github/repo-size/hishamalmushrea-cloud/manger?style=for-the-badge) ![Issues](https://img.shields.io/github/issues/hishamalmushrea-cloud/manger?style=for-the-badge) ![Last Commit](https://img.shields.io/github/last-commit/hishamalmushrea-cloud/manger?style=for-the-badge) [![License](https://img.shields.io/github/license/hishamalmushrea-cloud/manger?style=for-the-badge)](https://github.com/hishamalmushrea-cloud/manger/blob/main/LICENSE)
+
+## 📖 About this Project
+control phone by voice an writing like agent 
+
+## 🚀 Tech Stack
+- **Primary Language:** Kotlin
+
+## 🔗 Connect & Support
 [![Trendshift](https://trendshift.io/api/badge/repositories/4119)](https://trendshift.io/)
-[![Docs Website](https://img.shields.io/badge/Docs-Website-blue?style=for-the-badge&logo=readthedocs)](https://github.com/hishamalmushrea-cloud/manger)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Us-7289DA?style=for-the-badge&logo=discord&logoColor=white)](https://discord.com/)
 [![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/hishamalmushrea-cloud?style=social)](https://x.com/hishamalmushrea-cloud)
 
