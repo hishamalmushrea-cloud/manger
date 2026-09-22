@@ -1,3 +1,14 @@
+# manger
+
+[![GitHub Repo stars](https://img.shields.io/github/stars/hishamalmushrea-cloud/manger?style=social)](https://github.com/hishamalmushrea-cloud/manger)
+[![GitHub](https://img.shields.io/github/license/hishamalmushrea-cloud/manger)](https://github.com/hishamalmushrea-cloud/manger/blob/main/LICENSE)
+[![Trendshift](https://trendshift.io/api/badge/repositories/4119)](https://trendshift.io/)
+[![Docs Website](https://img.shields.io/badge/Docs-Website-blue?style=for-the-badge&logo=readthedocs)](https://github.com/hishamalmushrea-cloud/manger)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Us-7289DA?style=for-the-badge&logo=discord&logoColor=white)](https://discord.com/)
+[![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/hishamalmushrea-cloud?style=social)](https://x.com/hishamalmushrea-cloud)
+
+---
+
 <div align="center">
 <img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
 </div>
